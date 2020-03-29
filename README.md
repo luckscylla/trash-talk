@@ -1,1 +1,1 @@
-### This is a esimple chat room for trash talk
+### This is a simple chat room for trash talk
