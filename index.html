@@ -1,0 +1,302 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<link rel="stylesheet" href="src/font.css">
+	<link rel="stylesheet" href="src/default.css">
+	<link rel="stylesheet" href="src/vue-material.min.css">
+	<link rel="stylesheet" href="src/emojionearea.min.css">
+	<script src="src/jquery-3.4.1.min.js"></script>
+	<script src="src/emojionearea.min.js"></script>
+	<style type="text/css">
+		body{ font-family: Arial, "微軟正黑體"; }
+	</style>
+</head>
+
+<body>
+<div id="app">
+	<div id="title" class="md-display-1">PDKD-3 Trash Talk</div>
+
+	<div class="md-layout md-gutter md-alignment-top-center">
+		<div id="room" class="md-layout-item md-xlarge-size-40 md-large-size-50 md-small-size-70 md-xsmall-size-80 md-elevation-3 block">
+			<!-- announce -->
+			<md-content id="announce" class="md-scrollbar">
+				<template v-for="item in announce">
+					<div class="md-layout" >
+						<div class="md-layout-item">
+							<span class="md-subheading">[ {{ item.name || item.uid }} ] {{ item.message }}</span>
+							<span class="md-caption">{{ item.time }}</span>
+						</div>
+					</div>
+				</template>	
+			</md-content>
+			<!-- messages -->
+			<md-content id="message" class="md-scrollbar">
+				<template v-for="(item, key) in messages">
+					<!-- self -->
+					<div class="md-layout md-alignment-center-right" v-if="item.uid == uid">
+						<div class="md-layout-item md-size-80 self">
+							<span class="md-caption">{{ item.time }}</span>
+							<md-chip md-deletable @md-delete="confirm = true; msgSelected = key">
+								<a v-if="item.message.startsWith('https://')" :href="item.message" target="_blank">{{ item.message }}</a>
+								<span v-else>{{ item.message }}</span>
+							</md-chip>
+						</div>
+					</div>
+					<!-- others -->
+					<div class="md-layout md-alignment-center-left" v-else>
+						<!-- <div class="text-icon"><p>A</p></div> -->
+						<div class="md-layout-item md-size-80">
+							<div class="md-subheading">{{ item.name || item.uid }}</div>
+							<span>&nbsp</span>
+							<md-chip class="md-primary">
+								<a v-if="item.message.startsWith('https://')" :href="item.message" target="_blank" style="color: #FFF">{{ item.message }}</a>
+								<span v-else>{{ item.message }}</span>
+							</md-chip>
+							<span class="md-caption">{{ item.time }}</span>
+						</div>
+					</div>
+				</template>
+			</md-content>
+			<!-- input -->
+			<md-field id="input">
+				<md-icon>message</md-icon>
+				<md-input v-model="input" @keydown.enter="sendMessage()"></md-input>
+				<md-button class="md-icon-button md-primary" @click="sendMessage()">
+					<md-icon>send</md-icon>
+				</md-button>
+				<div id="emoji"></div>
+			</md-field>
+		</div>
+		<div> <md-dialog-alert :md-active.sync="warn" md-content="請先輸入您的 ID" md-confirm-text="OK" /> </div>
+		<div> <md-dialog-confirm :md-active.sync="confirm" md-title="移除訊息?"
+				md-confirm-text="確認" md-cancel-text="取消" @md-confirm="deleteMessage" /> </div>
+
+		<div id="info" class="md-layout-item md-xlarge-size-30 md-large-size-30 md-small-hide md-xsmall-hide block">
+			<!-- user information -->
+			<md-field :class="{ 'md-invalid': uid==null || uid.trim()=='' }">
+				<label>ID</label>
+				<md-input v-model="uid" @input="setCookie('uid', uid)" required></md-input>
+				<span class="md-error">e.g. yjchuanga (must)</span>
+			</md-field>
+			<md-field>
+				<label>Name</label>
+				<md-input v-model="name" @input="setCookie('name', name)"></md-input>
+			</md-field>
+			<md-field>
+				<label>Status</label>
+				<md-input v-model="status" @input="setCookie('status', status)"></md-input>
+				<md-button class="md-icon-button md-primary" @click="setStatus()">
+					<md-icon>send</md-icon>
+				</md-button>
+			</md-field>
+			<!-- user status -->
+			<p class="md-subheading">動態列表</p>
+			<md-content id="status" class="md-scrollbar">
+				<div v-for="item in statuses">
+					<span class="md-subheading">{{ item.name || item.uid }}: {{ item.message }}</span>
+					<span class="md-caption">{{ item.time }}</span>
+				</div>			
+			</md-content>
+		</div>
+	</div>
+
+</div>
+
+<script src="src/vue.min.js"></script>
+<script src="src/vue-material.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/7.13.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/7.13.0/firebase-database.js"></script>
+
+<script>
+var firebaseConfig = {
+	apiKey: "AIzaSyByvbUopkt7ikHOc-qsOYIo_ndJ-rUWWRg",
+	authDomain: "trashtalk-d2205.firebaseapp.com",
+	databaseURL: "https://trashtalk-d2205.firebaseio.com",
+	projectId: "trashtalk-d2205",
+	storageBucket: "trashtalk-d2205.appspot.com",
+	messagingSenderId: "904261477892",
+	appId: "1:904261477892:web:c3f89188b6bd1944d8f751",
+	measurementId: "G-YL8N7N6BWG"
+};
+Vue.use(VueMaterial.default)
+var app = new Vue({
+	el: '#app',
+	data: {
+		uid: null,
+		name: null,
+		status: null,
+		avatar: null,
+		input: null,
+		msgRef: null,
+		messages: null,
+		annRef: null,
+		announce: null,
+		staRef: null,
+		statuses: null,
+		warn: false,
+		confirm: false,
+		msgSelected: null,
+	},
+	mounted: function() {
+		const a = $("#emoji").emojioneArea({
+			standalone: true,
+			autocomplete: false,
+		});
+		const emojionearea = a[0].emojioneArea
+		emojionearea.on('emojibtn.click', () => {
+			const emoji = emojionearea.getText()
+			if (emoji == null) { return false }
+			if (this.input == null) { this.input = emoji } else { this.input += emoji }
+		})
+	},
+	created: function() {
+		this.initFirebase()
+		this.uid = this.getCookie('uid')
+		this.name = this.getCookie('name')
+		this.status = this.getCookie('status')
+	},
+	methods: {
+		initFirebase() {
+			firebase.initializeApp(firebaseConfig)
+			this.msgRef = firebase.database().ref('/message')
+			this.msgRef.on('value', (snapshot) => {
+				this.messages = snapshot.val()
+			})
+			this.annRef = firebase.database().ref('/announce')
+			this.annRef.on('value', (snapshot) => {
+				this.announce = snapshot.val()
+			})
+			this.staRef = firebase.database().ref('/status')
+			this.staRef.on('value', (snapshot) => {
+				this.statuses = snapshot.val()
+			})
+		},
+		sendMessage() {
+			if (this.uid != null && this.uid.trim() == '') { this.uid = null }
+			if (this.name != null && this.name.trim() == '') { this.name = null }
+			if (this.input != null && this.input.trim() == '') { this.input = null }
+
+			if (this.uid == null) { this.warn = true ; return false }
+			if (this.input == null) { return false }
+			if (this.msgRef == null || this.annRef == null) { return false }
+			let ref = this.msgRef
+			if (this.input.startsWith('[公告]')) { ref = this.annRef }
+			ref.push({
+				uid: this.uid,
+				name: this.name,
+				message: this.input,
+				time: this.getTime(),
+			})
+			this.input = null
+		},
+		deleteMessage() {
+			if (this.msgSelected == null) { return false }
+			this.msgRef.child(this.msgSelected).remove()
+		},
+		setStatus() {
+			if (this.uid != null && this.uid.trim() == '') { this.uid = null }
+			if (this.name != null && this.name.trim() == '') { this.name = null }
+			if (this.status != null && this.status.trim() == '') { this.status = null }
+
+			if (this.uid == null) { this.warn = true ; return false }
+			if (this.status == null) { return false }
+			if (this.staRef == null) { return false }
+			var data = {
+				uid: this.uid,
+				name: this.name,
+				message: this.status,
+				time: this.getTime(),
+			}
+			var updates = {}
+			updates[this.uid] = data
+			this.staRef.update(updates)
+		},
+		getTime() {
+			const now = new Date();
+			const hours = now.getHours();
+			const minutes = now.getMinutes();
+			return `${(hours >= 12) ? "下午" : "上午"} ${hours}:${(minutes < 10) ? '0' + minutes : minutes}`;
+		},
+		setCookie(key,value) {
+			document.cookie = key + "=" + value
+		},
+		getCookie(key) {
+			var name = key + "=";
+			var decodedCookie = decodeURIComponent(document.cookie);
+			var ca = decodedCookie.split(';');
+			for(var i = 0; i < ca.length; i++) {
+				var c = ca[i];
+				while (c.charAt(0) == ' ') {
+					c = c.substring(1);
+				}
+				if (c.indexOf(name) == 0) {
+					return c.substring(name.length, c.length);
+				}
+			}
+			return null;
+		},
+	},
+	updated() {
+		const message = document.getElementById("message");
+		message.scrollTop = message.scrollHeight;
+		const announce = document.getElementById("announce");
+		announce.scrollTop = announce.scrollHeight;
+	}
+})
+
+</script>
+</body>
+
+<style  scoped>
+	#title {
+		text-align: center;
+		margin: 24px;
+	}
+	#announce {
+		max-height: 48px;
+		padding-left: 12px;
+		overflow-y: auto;
+		overflow-x: hidden;
+		margin-bottom: 4px;
+		border-style: solid;
+		border-width: 1px;
+		border-color: #BBBBBB;
+		border-radius: 4px;
+		color: #FF1744;
+	}
+	#message {
+		height: 70vh;
+		padding: 12px;
+		overflow-y: auto;
+		overflow-x: hidden;
+	}
+	#status {
+		height: 50vh;
+		padding: 12px;
+		overflow-y: auto;
+		overflow-x: hidden;
+	}
+	.text-icon {
+		width: 48px;
+		height: 48px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		/*border: 2px solid #448AFF;*/
+		background-color: #448AFF;
+		border-radius: 24px;
+		color: #FFF;
+		font-size: 24px;
+		font-weight: bold;
+	}
+	.block {
+		padding: 12px;
+	}
+	.self {
+		text-align: right;
+		color: #448AFF;
+	}
+</style>
+
+</html>
