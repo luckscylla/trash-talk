@@ -38,8 +38,8 @@
 						<div class="md-layout-item md-size-80 self">
 							<span class="md-caption">{{ item.time }}</span>
 							<md-chip md-deletable @md-delete="confirm = true; msgSelected = key">
-								<a v-if="item.message.startsWith('https://')" :href="item.message" target="_blank">{{ item.message }}</a>
-								<span v-else>{{ item.message }}</span>
+								<a v-if="item.message.startsWith('https://')" :href="item.message" target="_blank" class="md-body-2">{{ item.message }}</a>
+								<span v-else class="md-body-2">{{ item.message }}</span>
 							</md-chip>
 						</div>
 					</div>
@@ -50,8 +50,8 @@
 							<div class="md-subheading">{{ item.name || item.uid }}</div>
 							<span>&nbsp</span>
 							<md-chip class="md-primary">
-								<a v-if="item.message.startsWith('https://')" :href="item.message" target="_blank" style="color: #FFF">{{ item.message }}</a>
-								<span v-else>{{ item.message }}</span>
+								<a v-if="item.message.startsWith('https://')" :href="item.message" target="_blank" class="md-body-2" style="color: #FFF">{{ item.message }}</a>
+								<span v-else class="md-body-2">{{ item.message }}</span>
 							</md-chip>
 							<span class="md-caption">{{ item.time }}</span>
 						</div>
